@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Doctor GenAI Simulation</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script>
+tailwind.config={theme:{extend:{colors:{red:{DEFAULT:'#B3202A',dark:'#8A1620'},beige:{DEFAULT:'#F3EBDD',deep:'#E6D9C3'},ink:'#2A1A18'},
+fontFamily:{serif:['Fraunces','serif'],sans:['"Instrument Sans"','sans-serif']}}}}
+</script>
+<style>
+@media print{body *{visibility:hidden}#sheet,#sheet *{visibility:visible}#sheet{position:absolute;left:0;top:0;width:100%;border:0}.noprint{display:none!important}}
+.nav{scrollbar-width:none;-webkit-overflow-scrolling:touch}.nav::-webkit-scrollbar{display:none}
+</style>
+</head>
+<body class="bg-beige text-ink font-sans min-h-screen">
+<header id="top" class="hidden sticky top-0 z-20 bg-red text-white shadow-md pt-[env(safe-area-inset-top)]">
+  <div class="mx-auto w-full max-w-5xl px-4 sm:px-6 h-12 flex items-center justify-between gap-3">
+    <span id="who" class="truncate min-w-0 text-sm sm:text-base font-medium"></span>
+    <span id="clk" class="shrink-0 font-serif text-lg sm:text-2xl tabular-nums"></span>
+  </div>
+  <div class="bg-red-dark">
+    <nav id="nav" aria-label="Sections" class="nav mx-auto w-full max-w-5xl px-2 sm:px-4 pt-2 flex items-end gap-1 overflow-x-auto md:overflow-visible text-sm md:text-[15px]"></nav>
+  </div>
+</header>
+<main id="app" class="mx-auto w-full max-w-5xl px-4 sm:px-6 py-5 sm:py-8 pb-24"></main>
+<div id="toast" class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 bg-ink text-white text-sm px-4 py-2 rounded-full"></div>
+
+<script>
+const API='/api';
+const S={doc:null,sid:null,tab:null,page:null,t0:0,q:[],rx:[],name:'',left:0,timer:null,items:[]};
+const TABS=[['A','Heart attack','Busy','#4472C4'],['B','Heart attack','Quiet','#8E5BBE'],['C','Crushed leg','Busy','#DD8A1B'],['D','Crushed leg','Quiet','#7A5230'],['E','Kidney stone pain','Busy','#D4BE12'],['F','Kidney stone pain','Quiet','#5BB5CC'],['G','Nosebleed','Busy','#D45A9B'],['H','Nosebleed','Quiet','#5F6B7C']];
+const SCENE={Busy:'Crowded emergency room. Other patients are waiting and the 5:00 clock is running.',Quiet:'Calm clinic with no waiting patients and no clock.'};
+const NAV=[['complaints','Complaints'],['followups','Follow-up'],['meds','Medicines'],['dx','Diagnosis'],['rx','Recommend & Rx'],['records','Records']];
+const D={
+'Heart attack':{
+ complaints:['Crushing chest pressure for 30 minutes, spreading to left arm and jaw','Sweating and nausea','Shortness of breath','Feeling of doom, cannot sit still'],
+ followups:['When did it start, and was it during exertion?','Previous heart attack, stent or bypass?','Diabetes, high blood pressure, smoking, family history?','Taking blood thinners, or any recent bleeding?','Any cocaine or stimulant use?'],
+ meds:['Aspirin 300 mg chewed|Given worldwide for suspected ACS','Nitroglycerin 0.4 mg under tongue|Used if systolic BP >90; avoided in right-ventricular infarct','P2Y12 inhibitor (ticagrelor or clopidogrel)|Ticagrelor/prasugrel preferred in many guidelines','Heparin|Standard alongside PCI','Atorvastatin 80 mg|High-intensity statin started early','Oxygen only if SpO2 <90%|Routine oxygen has been dropped'],
+ dx:{steps:['12-lead ECG within 10 minutes','High-sensitivity troponin, repeated at 1–3 hours','Vitals, IV access, continuous monitor','Bedside echo','Chest X-ray to rule out aortic dissection'],plan:['STEMI: primary PCI within 90 minutes (thrombolysis if PCI is over 120 minutes away)','NSTEMI: risk score (GRACE), early invasive strategy','Admit to CCU']},
+ recs:['Dual antiplatelet therapy for 12 months','Cardiac rehabilitation referral','Stop smoking, low-salt diet','Cardiology review in 1 week']},
+'Crushed leg':{
+ complaints:['Severe leg pain after a heavy object fell on it','Swelling, bruising and numbness','Cannot move the foot','Visible deformity and bleeding'],
+ followups:['How did it happen, and how long ago?','How long was the leg trapped?','Tetanus vaccination status?','Allergies, and when was the last meal?','Can the toes move and feel touch?'],
+ meds:['IV crystalloid fluids|Early aggressive fluids if crush was prolonged','Morphine or fentanyl IV|Multimodal, opioid-sparing approaches rising','Tranexamic acid 1 g IV|Increasing use in major trauma bleeding','Tetanus toxoid|Standard for open wounds','Cefazolin IV|Antibiotics within 1 hour for open fractures'],
+ dx:{steps:['Primary survey; control bleeding, tourniquet if needed','Neurovascular exam (pain, pulse, pallor, paralysis)','X-ray; CT angiography if pulses are absent','CK, potassium and creatinine for rhabdomyolysis','Compartment pressure if the leg is tense'],plan:['Splint and elevate; orthopedic and vascular consult','Fasciotomy if compartment syndrome','Monitor urine output and kidney function']},
+ recs:['Non-weight-bearing until reviewed','Wound check in 48 hours','Physiotherapy plan','Return urgently for numbness, colour change or fever']},
+'Kidney stone pain':{
+ complaints:['Sudden severe flank pain spreading to the groin, in waves','Nausea and vomiting','Blood in the urine','Restless, cannot find a comfortable position'],
+ followups:['Earlier stones or family history?','Fever or chills?','Single kidney or known kidney disease?','Pain score, and how often passing urine?','Allergies, or reasons to avoid NSAIDs?'],
+ meds:['Ketorolac or diclofenac|NSAIDs are first-line worldwide','Ondansetron 4 mg|Standard antiemetic','Tamsulosin 0.4 mg|Medical expulsive therapy; debated, used for lower stones over 5 mm','Oral or IV fluids|Moderate hydration; forced diuresis not advised','Opioid rescue|Only when NSAIDs are not enough'],
+ dx:{steps:['Vitals, abdominal exam, check for fever','Urinalysis and culture','Low-dose non-contrast CT KUB (or ultrasound)','Creatinine and blood count','Rule out aneurysm, appendicitis, torsion'],plan:['Under 5 mm: conservative, expected to pass','5–10 mm: expulsive therapy or ureteroscopy','Infection with blockage: urgent drainage']},
+ recs:['Drink 2.5–3 litres of water daily','Strain urine to catch the stone','Cut salt and animal protein','Urology follow-up in 1–2 weeks; return if fever']},
+'Nosebleed':{
+ complaints:['Bleeding from one nostril for 20 minutes','Blood running down the throat','Dizziness','Recent nose picking or dry air'],
+ followups:['Which side, for how long, how much blood?','On blood thinners or antiplatelets?','High blood pressure or bleeding disorder?','Any recent injury to the nose?','Repeated episodes before?'],
+ meds:['Topical oxymetazoline|Widely used first-line vasoconstrictor','Tranexamic acid (topical or oral)|Growing evidence in recent trials','Silver nitrate cautery|For a visible anterior bleeding point','Dissolvable nasal packing|Preferred over ribbon gauze','Petroleum jelly or saline gel|Prevents recurrence'],
+ dx:{steps:['Sit up, lean forward, pinch the soft nose for 10–15 minutes','Check BP, pulse, airway','Anterior rhinoscopy to find the source','Blood count and INR if on anticoagulants or heavy bleeding','Signs of posterior bleed: refer to ENT'],plan:['Anterior bleed: cautery or packing','Posterior or uncontrolled: ENT, admit','Review anticoagulant dose']},
+ recs:['Humidify; saline spray twice daily','No picking and no hot drinks for 24 hours','Do not blow the nose hard','Follow up if it keeps recurring']}
+};
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const $=id=>document.getElementById(id);
+const send=(u,b)=>fetch(API+u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(r=>{if(!r.ok)throw 0;return r.json()});
+function log(t,l,ms){S.q.push({session_id:S.sid,doctor_id:S.doc,page:S.page,event_type:t,label:l??null,duration_ms:ms??null,client_ts:new Date().toISOString()})}
+function flush(beacon){if(!S.q.length||(!S.doc&&!beacon))return;const evs=S.q;S.q=[];const body=JSON.stringify({events:evs});
+ if(beacon)navigator.sendBeacon(API+'/events',new Blob([body],{type:'application/json'}));
+ else fetch(API+'/events',{method:'POST',headers:{'Content-Type':'application/json'},body}).then(r=>{if(!r.ok)throw 0}).catch(()=>{S.q=evs.concat(S.q)})}
+setInterval(()=>flush(),5000);
+document.addEventListener('visibilitychange',()=>log(document.hidden?'tab_hidden':'tab_visible'));
+addEventListener('pagehide',()=>{if(S.page)log('page_time',null,Date.now()-S.t0);flush(true)});
+document.addEventListener('click',e=>{const b=e.target.closest('button,a');if(b)log('click',b.dataset.l||b.innerText.trim().slice(0,50))});
+function toast(m){const t=$('toast');t.textContent=m;t.classList.remove('hidden');setTimeout(()=>t.classList.add('hidden'),1800)}
+function go(p){if(S.page)log('page_time',null,Date.now()-S.t0);S.page=p;S.t0=Date.now();log('page_view',p);render();scrollTo(0,0)}
+
+const grid='grid gap-3 md:grid-cols-2';
+const btn='bg-red text-white rounded-xl px-4 py-3 font-semibold active:bg-red-dark w-full';
+const card='bg-white rounded-2xl p-4 border border-beige-deep';
+const story=()=>D[S.tab[1]];
+function addRx(t){S.rx.push({text:t});log('add_to_sheet',t.slice(0,60));toast('Added to prescription sheet');}
+function addItems(i){addRx(S.items[i])}
+function addAll(){S.items.forEach(t=>S.rx.push({text:t}));log('add_all_to_sheet',S.page+' ('+S.items.length+')');toast(S.items.length+' items added')}
+function item(t,sub,i){return `<div class="${card} flex gap-3 items-start"><div class="flex-1"><p class="font-medium">${esc(t)}</p>${sub?`<p class="text-sm text-ink/60 mt-1"><b class="font-semibold text-red">Global trend:</b> ${esc(sub)}</p>`:''}</div><button data-l="add:${esc(t.slice(0,30))}" onclick="addItems(${i})" class="shrink-0 border border-red text-red rounded-lg w-9 h-9 text-xl leading-none">+</button></div>`}
+function head(title){return `<div class="flex flex-wrap items-center justify-between gap-3 mb-4"><h2 class="font-serif text-2xl font-bold">${title}</h2><button data-l="add all" onclick="addAll()" class="bg-red text-white text-sm font-semibold rounded-lg px-3 py-2 whitespace-nowrap">+ Add all to Rx sheet</button></div>`}
+
+function render(){
+ const p=S.page,app=$('app'),inApp=NAV.some(n=>n[0]===p);
+ $('top').classList.toggle('hidden',!inApp);
+ if(p==='reg'){app.innerHTML=`<div class="pt-4 sm:pt-10 max-w-xl mx-auto"><h1 class="font-serif text-4xl font-bold text-red leading-tight">How would you use GenAI in the next five minutes?</h1><p class="mt-3 text-ink/70">You will see an emergency scenario and a set of tools. We record what you tap and how long you spend on each page. Start by telling us who you are.</p>
+ <div class="${card} mt-6 space-y-3">${[['name','Doctor name'],['spec','Specialization'],['hosp','Hospital name']].map(([k,l])=>`<label class="block text-sm font-medium">${l}<input id="${k}" class="mt-1 w-full rounded-xl border border-beige-deep bg-beige/50 px-3 py-3 text-base focus:outline-red"></label>`).join('')}
+ <button onclick="register()" class="${btn}">Continue</button></div></div>`}
+ else if(p==='tabs'){app.innerHTML=`<h2 class="font-serif text-2xl font-bold mb-1">Choose a situation</h2><p class="text-sm text-ink/70 mb-4">Busy tabs run a 5:00 clock. Quiet tabs have none.</p><div class="${grid}">${TABS.map((t,i)=>`<button data-l="tab ${t[0]}" onclick="pick(${i})" class="${card} w-full flex items-center gap-4 text-left active:bg-beige"><span class="w-11 h-11 rounded-xl grid place-items-center text-white font-bold" style="background:${t[3]}">${t[0]}</span><span class="flex-1"><b class="block">${t[1]}</b><span class="text-sm text-ink/60">${SCENE[t[2]]}</span></span><span class="font-serif font-bold ${t[2]==='Busy'?'text-red':'text-ink/40'}">${t[2]==='Busy'?'5:00':'None'}</span></button>`).join('')}</div>`}
+ else if(p==='video'){app.innerHTML=`<h2 class="font-serif text-2xl font-bold mb-1">Tab ${S.tab[0]}: ${S.tab[1]}</h2><p class="text-sm text-ink/70 mb-3">${SCENE[S.tab[2]]}</p>
+ <video id="vid" class="w-full max-w-3xl block rounded-2xl bg-ink aspect-video" controls autoplay playsinline src="/static/videos/${S.tab[0]}.mp4" onended="log('video_ended');startApp()" onerror="this.outerHTML='<div class=&quot;rounded-2xl bg-ink text-white aspect-video grid place-items-center text-center p-4 text-sm&quot;>Video not found. Add static/videos/${S.tab[0]}.mp4, or skip.</div>'"></video>
+ <button data-l="skip video" onclick="log('skip_video');startApp()" class="${btn} mt-4 max-w-3xl">Skip video</button>`}
+ else if(p==='complaints'){S.items=story().complaints;app.innerHTML=head('Patient complaints')+`<div class="${grid}">${S.items.map((t,i)=>item(t,'',i)).join('')}</div>`}
+ else if(p==='followups'){S.items=story().followups;app.innerHTML=head('Follow-up questions')+`<div class="${grid}">${S.items.map((t,i)=>item(t,'',i)).join('')}</div>`}
+ else if(p==='meds'){const m=story().meds.map(x=>x.split('|'));S.items=m.map(x=>x[0]);app.innerHTML=head('Medicines')+`<div class="${grid}">${m.map((x,i)=>item(x[0],x[1],i)).join('')}</div>`}
+ else if(p==='dx'){const d=story().dx;S.items=[...d.steps,...d.plan];app.innerHTML=head('Diagnosis')+`<h3 class="font-semibold mb-2">Steps</h3><div class="${grid}">${d.steps.map((t,i)=>item(t,'',i)).join('')}</div><h3 class="font-semibold mt-5 mb-2">Plan</h3><div class="${grid}">${d.plan.map((t,i)=>item(t,'',i+d.steps.length)).join('')}</div>`}
+ else if(p==='rx'){S.items=story().recs;app.innerHTML=head('Recommendations')+`<div class="${grid}">${S.items.map((t,i)=>item(t,'',i)).join('')}</div>
+ <div id="sheet" class="${card} mt-6 max-w-2xl"><h3 class="font-serif text-xl font-bold text-red">Prescription sheet</h3><p class="text-sm text-ink/60 mb-3">${esc(S.who)} · ${S.tab[1]}</p>
+ <label class="block text-sm font-medium">Patient name<input id="pname" value="${esc(S.name)}" oninput="S.name=this.value" class="mt-1 w-full rounded-xl border border-beige-deep px-3 py-2"></label>
+ <div class="mt-3 space-y-2">${S.rx.length?S.rx.map((r,i)=>`<div class="flex gap-2"><textarea rows="2" oninput="S.rx[${i}].text=this.value" onchange="log('rx_edit','line '+(${i}+1))" class="flex-1 rounded-xl border border-beige-deep px-3 py-2 text-sm">${esc(r.text)}</textarea><button data-l="remove line" onclick="S.rx.splice(${i},1);render()" class="noprint text-red text-xl px-1">×</button></div>`).join(''):'<p class="text-sm text-ink/50">Nothing added yet. Use the + buttons on any page.</p>'}</div>
+ <button data-l="add blank line" onclick="S.rx.push({text:''});render()" class="noprint mt-3 text-red text-sm font-semibold">+ Add a line</button>
+ <div class="noprint grid grid-cols-2 gap-3 mt-4"><button data-l="print sheet" onclick="print()" class="border border-red text-red rounded-xl py-3 font-semibold">Print</button><button data-l="save record" onclick="saveRec()" class="${btn} py-3">Save to records</button></div></div>`}
+ else if(p==='records'){app.innerHTML=`<h2 class="font-serif text-2xl font-bold mb-4">Patient records</h2><div id="rec" class="${grid} text-sm text-ink/60">Loading…</div>`;loadRecs()}
+ $('nav').innerHTML=NAV.map(n=>{const on=p===n[0];return `<button data-l="nav:${n[1]}" ${on?'aria-current="page"':''} onclick="go('${n[0]}')" class="shrink-0 md:shrink md:flex-1 md:basis-0 text-center whitespace-nowrap px-4 py-3 rounded-t-xl transition-colors ${on?'bg-beige text-red font-semibold':'text-white/90 hover:bg-white/10'}">${n[1]}</button>`}).join('');
+ const nv=$('nav'),on=nv.querySelector('[aria-current]');if(on)nv.scrollTo({left:on.offsetLeft-(nv.clientWidth-on.offsetWidth)/2})
+}
+async function register(){const v=k=>$(k).value.trim();if(!v('name')||!v('spec')||!v('hosp'))return toast('Please fill all three fields');
+ try{const d=await send('/doctors',{name:v('name'),specialization:v('spec'),hospital:v('hosp')});S.doc=d.id;S.who='Dr '+d.name;S.q.forEach(e=>e.doctor_id=e.doctor_id||d.id);go('tabs')}catch{toast('Could not save. Is the server running?')}}
+async function pick(i){S.tab=TABS[i];try{const s=await send('/sessions',{doctor_id:S.doc,tab:S.tab[0],story:S.tab[1],opening:S.tab[2],device:matchMedia('(max-width:767px)').matches?'mobile':'desktop',user_agent:navigator.userAgent.slice(0,300),screen:screen.width+'x'+screen.height+' (viewport '+innerWidth+'x'+innerHeight+')'});S.sid=s.id}catch{toast('Session not saved');}
+ go('video')}
+function startApp(){$('who').textContent=S.who+' · Tab '+S.tab[0]+' · '+S.tab[1];clearInterval(S.timer);
+ if(S.tab[2]==='Busy'){S.left=300;tick();S.timer=setInterval(tick,1000)}else $('clk').textContent='';
+ go('complaints')}
+function tick(){const m=Math.floor(S.left/60),s=S.left%60;$('clk').textContent=m+':'+String(s).padStart(2,'0');
+ if(S.left<=0){clearInterval(S.timer);log('timer_expired');$('clk').textContent='0:00 · time up'}S.left--}
+async function saveRec(){if(!S.name.trim())return toast('Enter the patient name');
+ try{await send('/records',{session_id:S.sid,doctor_id:S.doc,patient_name:S.name,items:S.rx.map(r=>r.text),notes:S.tab[1]});log('record_saved',S.name);toast('Record saved')}catch{toast('Save failed')}}
+async function loadRecs(){try{const r=await fetch(API+'/records?doctor_id='+S.doc).then(r=>r.json());
+ $('rec').innerHTML=r.length?r.map(x=>`<div class="${card} text-ink"><b>${esc(x.patient_name)}</b><span class="block text-ink/60">${new Date(x.created_at).toLocaleString()} · ${esc(x.notes)}</span><ul class="list-disc pl-5 mt-2">${x.items.map(i=>`<li>${esc(i)}</li>`).join('')}</ul></div>`).join(''):'No records yet. Save a prescription sheet to see it here.'}catch{$('rec').textContent='Could not load records.'}}
+go('reg');
+</script>
+</body>
+</html>
